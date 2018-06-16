@@ -34,61 +34,51 @@
 /* Comment this out to disable prints and save space */
 #define BLYNK_PRINT Serial
 
-
+#include <Wire.h>
+#include <Adafruit_BMP085.h>
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
-#include <DHT.h>
 
 #define RSTPIN D0
-#define DHTPIN D4          // What digital pin we're connected to
-
-// Uncomment whatever type you're using!
-#define DHTTYPE DHT11     // DHT 11
-//#define DHTTYPE DHT22   // DHT 22, AM2302, AM2321
-//#define DHTTYPE DHT21   // DHT 21, AM2301
 
 // You should get Auth Token in the Blynk App.
 // Go to the Project Settings (nut icon).
-char auth[] = "b111708168014bb0abbbf2b567d51ef4";
+char auth[] = "ae1ac49356d142f69dc3a1f066628831";
 
 // Your WiFi credentials.
 // Set password to "" for open networks.
-char ssid[] = "MB";
+char ssid[] = "Trepechov";
 char pass[] = "azimitaka2";
 
-const int sleepSeconds = 10*60;
+const int sleepSeconds = 1 * 60; // Sleep to 10 minuntes
 
-float humidity, temperature, heatIndex;
-char str_humidity[10], str_temperature[10], str_heatIndex[10];
+Adafruit_BMP085 bmp;
 
-DHT dht(DHTPIN, DHTTYPE);
+float temperature, pressure;
+// float humidity, temperature, heatIndex;
+// char str_humidity[10], str_temperature[10], str_heatIndex[10];
+
+// DHT dht(DHTPIN, DHTTYPE);
 
 // This function sends Arduino's up time every second to Virtual Pin (5).
 // In the app, Widget's reading frequency should be set to PUSH. This means
 // that you define how often to send data to Blynk App.
-void sendSensor()
-{
-  float humidity = dht.readHumidity();
-  float temperature = dht.readTemperature(); // or dht.readTemperature(true) for Fahrenheit
+void sendSensor() {
 
-  if (isnan(humidity) || isnan(temperature)) {
-    Serial.println("Failed to read from DHT sensor!");
+  float temperature = bmp.readTemperature();
+  float pressure = bmp.readPressure();
+
+  if (isnan(temperature) || isnan(pressure)) {
+    Serial.println("Failed to read from BMP180 sensor!");
     return;
   }
-  
-  float heatIndex = dht.computeHeatIndex(temperature, humidity, false);
-  
-  // Convert the floats to strings and round to 2 decimal places
-  dtostrf(humidity, 1, 2, str_humidity);
-  dtostrf(temperature, 1, 2, str_temperature);
-  dtostrf(heatIndex, 1, 2, str_heatIndex);
-  Serial.printf("\nHumidity:    %s %%\nTemperature: %s *C\nHeat index:  %s *C\n\n", str_humidity, str_temperature, str_heatIndex);
-  
+
+  Serial.printf("Temperature:\t%0.2f *C\nPressure:\t%f hPa\n\n", temperature, pressure);
+
   // You can send any value at any time.
   // Please don't send more that 10 values per second.
-  Blynk.virtualWrite(V5, humidity);
   Blynk.virtualWrite(V6, temperature);
-  Blynk.virtualWrite(V7, heatIndex);
+  Blynk.virtualWrite(V7, pressure);
 }
 
 void setup()
@@ -97,17 +87,28 @@ void setup()
   pinMode(RSTPIN, WAKEUP_PULLUP);
   Blynk.begin(auth, ssid, pass);
 
-  dht.begin();
+
+  if (!bmp.begin()) {
+    Serial.println("Could not find a valid BMP085 sensor, check wiring!");
+  }
   Blynk.run();
+  Blynk.syncVirtual(V4);
   sendSensor();
 
-  Serial.printf("Sleep for %d seconds\n\n", sleepSeconds);
+  Serial.printf("Sleep for %i seconds\n\n", sleepSeconds);
   ESP.deepSleep(sleepSeconds * 1000000);
+}
+
+int someValue;
+BLYNK_WRITE(V4) 
+{
+   someValue = param.asInt();
+   Serial.printf("V4 %i\n\n", someValue);
 }
 
 void loop()
 {
-//  Blynk.run();
-//  timer.run();
+  //  Blynk.run();
+  //  timer.run();
 }
 
