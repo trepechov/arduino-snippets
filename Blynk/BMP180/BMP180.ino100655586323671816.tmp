@@ -9,53 +9,43 @@
 #define RSTPIN D0
 #define BATPIN A0
 
+// You should get Auth Token in the Blynk App.
+// Go to the Project Settings (nut icon).
 char auth[] = "ae1ac49356d142f69dc3a1f066628831";
+
+// Your WiFi credentials.
+// Set password to "" for open networks.
 char ssid1[] = "MB";
 char ssid2[] = "Trepechov";
 char pass[] = "azimitaka2";
 
-int sleepMinutes = 5; // Sleep to 5 minunte
+int sleepMinutes = 1; // Sleep to 1 minunte
 float temperature, pressure;
 Adafruit_BMP085 bmp;
 
 bool connectWiFi(char ssid[], char pass[], int retry) 
 {
-  Serial.printf("Connecting to %s", ssid);
+  Serial.printf("\nConnecting to %s", ssid);
   WiFi.begin(ssid, pass);
   int i = 0;
   while (WiFi.status() != WL_CONNECTED) {
+    i++;
+    Serial.print(".");
     if (i++ > retry)
     {
       WiFi.disconnect();
-      Serial.println(" Can't connect to network!");
+      Serial.println(" Can't connect!");
       return false;
     }
-    Serial.print(".");
-    delay(1000);
+    delay(3000);
   }
   Serial.println(" Connected!");
-  blink(3);
   return true;
 }
 
-bool connectBlynk(int retry)
-{
-  Blynk.config(auth);
-  int i = 0;
-  while(Blynk.connect() != true)
-  {
-    if (i++ > retry)
-    {
-      Serial.println(" Can't connect to Blynk service");
-      return false;  
-    }
-    Serial.print(".");
-    delay(500);
-  }
-  Serial.println("Conected!");
-  return true;
-}
-
+// This function sends Arduino's up time every second to Virtual Pin (5).
+// In the app, Widget's reading frequency should be set to PUSH. This means
+// that you define how often to send data to Blynk App.
 void processSensor()
 {
   float temperature = bmp.readTemperature();
@@ -66,7 +56,7 @@ void processSensor()
     return;
   }
 
-  Serial.printf("\nTemperature:\t%0.1f *C\nAir Pressure:\t%0.0f hPa\n\n", temperature, pressure); 
+  Serial.printf("\nTemperature:\t%0.1f *C\nPressure:\t%0.0f hPa\n\n", temperature, pressure); 
   // You can send any value at any time.
   // Please don't send more that 10 values per second.
   Blynk.virtualWrite(V6, temperature);
@@ -84,18 +74,13 @@ void blink(int i)
   int j;
   for (j = 0; j < i; j++)
   {
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(250);
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(250);
+    digitalWrite(LED_BUILTIN, LOW);   // Turn the LED on (Note that LOW is the voltage level
+                                      // but actually the LED is on; this is because 
+                                      // it is active low on the ESP-01)
+    delay(500);                       // Wait for a second
+    digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
+    delay(500);
   }
-}
-
-void sleep(int minutes)
-{
-  Serial.printf("Sleep for %i minutes\n\n", minutes);
-  //blink(sleepMinutes);
-  ESP.deepSleep(minutes * 60 * 1000000);
 }
 
 BLYNK_WRITE(V4) 
@@ -107,29 +92,34 @@ BLYNK_WRITE(V4)
 void setup()
 {
   Serial.begin(9600);
-  Serial.println("");
   pinMode(LED_BUILTIN, OUTPUT);  
   pinMode(RSTPIN, WAKEUP_PULLUP);
   digitalWrite(LED_BUILTIN, HIGH);
+  
   bool connected = false;
+  if (connectWiFi(ssid1, pass, 3)) {
+    connected = true;
+  }
+  if (!connected && connectWiFi(ssid2, pass, 3)) {
+    connected = true;  
+  }
   
-  connected = connectWiFi(ssid1, pass, 7);
-  connected = connected || connectWiFi(ssid2, pass, 7);
-  connected = connected && connectBlynk(4);
-  
-  if (connected)
-  {
-    if (!bmp.begin())
-    {
+  if (connected) {
+    Blynk.config(auth);
+   // Blynk.begin(auth, ssid1, pass);
+    
+    if (!bmp.begin()) {
       Serial.println("Could not find a valid BMP085 sensor, check wiring!");
     }
     Blynk.run();
     Blynk.syncVirtual(V4);
     processSensor();
     Blynk.virtualWrite(V2, readBattery());
+    Blynk.run();
   }
-
-  sleep(sleepMinutes);
+  Serial.printf("Sleep for %i minutes\n\n", sleepMinutes);
+  blink(sleepMinutes);
+  ESP.deepSleep(sleepMinutes * 60 * 1000000);
 }
 
 void loop()
